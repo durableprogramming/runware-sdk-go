@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 	
 	"github.com/gorilla/websocket"
@@ -183,7 +184,7 @@ func (r *runware) reconnectLoop() {
 			for i := 0; i < r.reconnectAttempt; i++ {
 				var err error
 				_ = r.Close()
-				r.client, err = wsConnect(r.connStr.String())
+				r.client, err = wsConnect(r.connStr.String(), r.apiKey)
 				if err != nil {
 					log.Printf("Reconnect attempt %d failed: %s\n", i+1, err.Error())
 					time.Sleep(5 * time.Second)
@@ -216,7 +217,7 @@ func New(cfg RunwareConfig) (Runware, error) {
 		cfg.ConnAddr = ProdEnv
 	}
 	
-	client, err := wsConnect(cfg.ConnAddr.String())
+	client, err := wsConnect(cfg.ConnAddr.String(), cfg.APIKey)
 	if err != nil {
 		return nil, fmt.Errorf("%w:[%s]", ErrWsDial, cfg.ConnAddr.String())
 	}
@@ -250,7 +251,9 @@ func interfaceToByte(v interface{}) ([]byte, error) {
 	}
 }
 
-func wsConnect(connStr string) (*websocket.Conn, error) {
-	conn, _, err := websocket.DefaultDialer.Dial(connStr, nil)
+func wsConnect(connStr string, apiKey string) (*websocket.Conn, error) {
+	headers := make(http.Header)
+	headers.Set("Authorization", "Bearer "+apiKey)
+	conn, _, err := websocket.DefaultDialer.Dial(connStr, headers)
 	return conn, err
 }
