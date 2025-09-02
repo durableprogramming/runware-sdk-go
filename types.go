@@ -101,7 +101,9 @@ type PreProcessControlNet struct {
 type Task struct {
 	TaskUUID           string       `json:"taskUUID"`
 	ImageInitiatorUUID string       `json:"imageInitiatorUUID,omitempty"`
+	ImageMaskUUID      string       `json:"imageMaskUUID,omitempty"`
 	PromptText         string       `json:"promptText"`
+	NegativePrompt     string       `json:"negativePrompt,omitempty"`
 	NumberResults      int          `json:"numberResults"`
 	ModelId            string       `json:"modelId"`
 	SizeId             int          `json:"sizeId"`

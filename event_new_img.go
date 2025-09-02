@@ -26,7 +26,7 @@ func (sdk *SDK) NewImage(ctx context.Context, req NewTaskReq) (*NewTaskResp, err
 	
 	// In case `req.TaskType` is empty try to evaluate it
 	if req.TaskType == 0 {
-		req.TaskType = getTaskType(req.PromptText, req.ControlNet, "", req.ImageInitiatorUUID)
+		req.TaskType = getTaskType(req.PromptText, req.ControlNet, req.ImageMaskUUID, req.ImageInitiatorUUID)
 	}
 	
 	req = *mergeNewTaskReqWithDefaults(&req)
