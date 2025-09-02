@@ -17,7 +17,7 @@ const (
 	NewImageUpload           = "newImageUpload"
 	NewReverseImageClip      = "newReverseImageClip"
 	NewPromptEnhance         = "newPromptEnhance"
-	Pong                     = "pong"
+	Pong                     = "ping"
 )
 
 func MergeEventRequestsWithDefaults[T any](cfgDest, defaultCfgDest T) error {

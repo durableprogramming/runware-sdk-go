@@ -26,7 +26,9 @@ func NewSDK(cfg SDKConfig) (*SDK, error) {
 	
 	res, err := sdk.Connect(context.Background(), NewConnectReq{
 		APIKey: sdk.Client.APIKey(),
+		TaskType: "ping",
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("%w:[%s]", ErrWsDial, err.Error())
 	}
@@ -77,6 +79,7 @@ func (sdk *SDK) onReconnected() {
 			_, err := sdk.Connect(context.Background(), NewConnectReq{
 				APIKey:                sdk.Client.APIKey(),
 				ConnectionSessionUUID: sdk.sessionKey,
+				TaskType: "ping",
 			})
 			if err != nil {
 				log.Println("Reconnect failed:", err)
@@ -94,9 +97,9 @@ type Request struct {
 }
 
 func (req Request) ToEvent() ([]byte, error) {
-	reqM := map[string]interface{}{
-		req.Event: req.Data,
-	}
+
+	reqM := [] interface{} { req.Data }
+
 	return json.Marshal(reqM)
 }
 

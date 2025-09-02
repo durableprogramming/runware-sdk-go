@@ -75,6 +75,8 @@ func (r *runware) Send(msg []byte) error {
 		return ErrOutgoingIsNil
 	}
 	
+	log.Println("send");
+	log.Println(string(msg));
 	return r.client.WriteMessage(websocket.TextMessage, msg)
 }
 

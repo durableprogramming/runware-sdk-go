@@ -2,30 +2,39 @@ package runware
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 	
 	"github.com/google/uuid"
+	"github.com/tidwall/gjson"
 )
 
 type NewConnectReq struct {
 	APIKey                string `json:"apiKey"`
 	ConnectionSessionUUID string `json:"connectionSessionUUID,omitempty"`
+	TaskType              string `json:"taskType"`
 }
 
 type NewConnectResp struct {
 	ConnectionSessionUUID string `json:"connectionSessionUUID"`
+	TimedOut              bool   `json:"timedOut"`
 }
 
 func (sdk *SDK) Connect(ctx context.Context, req NewConnectReq) (*NewConnectResp, error) {
+	req = *mergeNewConnectReqWithDefaults(&req)
+	if err := validateNewConnectReq(req); err != nil {
+		return nil, err
+	}
+	
 	sendReq := Request{
 		ID:            uuid.New().String(),
 		Event:         NewConnection,
 		ResponseEvent: NewConnectionSessionUUID,
 		Data:          req,
 	}
+	
+	newConnectResp := &NewConnectResp{}
 	
 	responseChan := make(chan *NewConnectResp)
 	errChan := make(chan error)
@@ -35,40 +44,35 @@ func (sdk *SDK) Connect(ctx context.Context, req NewConnectReq) (*NewConnectResp
 		defer close(errChan)
 		
 		for msg := range sdk.Client.Listen() {
-			var msgData map[string]interface{}
-			if err := json.Unmarshal(msg, &msgData); err != nil {
-				errChan <- fmt.Errorf("%w:[%s]", ErrDecodeMessage, err.Error())
-				return
-			}
+			msgStr := string(msg)
 			
 			// Check if is an error message first
-			if errMsg, ok := sdk.OnError(msgData); ok {
-				errChan <- errMsg
+			if gjson.Get(msgStr, "error").Bool() {
+				errorId := gjson.Get(msgStr, "errorId").Float()
+				errorMessage := gjson.Get(msgStr, "errorMessage").String()
+				
+				var err error
+				switch errorId {
+				case 19:
+					err = ErrInvalidApiKey
+				default:
+					err = ErrWsUnknownError
+				}
+				
+				errChan <- fmt.Errorf("%w:[%v:%s]", err, errorId, errorMessage)
 				return
 			}
 			
-			for k, v := range msgData {
-				if k != sendReq.ResponseEvent {
-					log.Println("Skipping event", k, "Currently handling", sendReq.ResponseEvent)
-					continue
-				}
-				
-				bValue, err := interfaceToByte(v)
-				if err != nil {
-					errChan <- err
-					return
-				}
-				
-				var newConnectResp *NewConnectResp
-				err = json.Unmarshal(bValue, &newConnectResp)
-				if err != nil {
-					errChan <- err
-					return
-				}
-				
+			// Check if message contains our response event
+			if gjson.Get(msgStr, sendReq.ResponseEvent).Exists() {
+				sessionUUID := gjson.Get(msgStr, sendReq.ResponseEvent).String()
+				newConnectResp.ConnectionSessionUUID = sessionUUID
 				responseChan <- newConnectResp
 				return
 			}
+			
+			// Skip if not our event
+			log.Println("Skipping message, waiting for", sendReq.ResponseEvent)
 		}
 	}()
 	
@@ -87,8 +91,27 @@ func (sdk *SDK) Connect(ctx context.Context, req NewConnectReq) (*NewConnectResp
 	case err = <-errChan:
 		return nil, err
 	case <-time.After(timeoutSendResponse * time.Second):
-		return nil, fmt.Errorf("%w:[%s]", ErrRequestTimeout, sendReq.Event)
+		newConnectResp.TimedOut = true
+		return newConnectResp, fmt.Errorf("%w:[%s]", ErrRequestTimeout, sendReq.Event)
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+func NewConnectReqDefaults() *NewConnectReq {
+	return &NewConnectReq{
+		TaskType: "ping",
+	}
+}
+
+func mergeNewConnectReqWithDefaults(req *NewConnectReq) *NewConnectReq {
+	_ = MergeEventRequestsWithDefaults[*NewConnectReq](req, NewConnectReqDefaults())
+	return req
+}
+
+func validateNewConnectReq(req NewConnectReq) error {
+	if req.APIKey == "" {
+		return fmt.Errorf("%w:[%s]", ErrFieldRequired, "apiKey")
+	}
+	return nil
 }
